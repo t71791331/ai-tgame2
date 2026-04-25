@@ -2,11 +2,18 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { answer, step } = await req.json();
+    // 1. Проверяем, приходят ли данные из формы
+    const body = await req.json();
+    const { answer, step } = body;
 
+    // 2. Проверяем, видит ли сервер ваш ключ
     const apiKey = process.env.OPENAI_API_KEY;
+    
+    if (!apiKey) {
+      return NextResponse.json({ comment: "Ошибка: Ключ API не найден в настройках Vercel." }, { status: 200 });
+    }
 
-    // Запрос к Groq (бесплатно)
+    // 3. Пытаемся достучаться до Groq
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -16,31 +23,22 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
         messages: [
-          { 
-            role: "system", 
-            content: "Ты эмпатичный психолог-проводник. Дай короткий и мудрый ответ на мысли игрока." 
-          },
-          { 
-            role: "user", 
-            content: `Этап игры: ${step}. Мысли игрока: ${answer}` 
-          }
-        ],
-        temperature: 0.7
+          { role: "system", content: "Ты — краткий психолог-проводник." },
+          { role: "user", content: `Этап: ${step}. Ответ: ${answer}` }
+        ]
       })
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      // Это выведет конкретную ошибку от провайдера ИИ
-      return NextResponse.json({ comment: `Ошибка AI: ${data.error?.message || "Неизвестно"}` }, { status: 500 });
+      return NextResponse.json({ comment: `Ошибка API: ${data.error?.message || "Что-то не так с ключом"}` }, { status: 200 });
     }
 
-    return NextResponse.json({ 
-      comment: data.choices[0].message.content 
-    });
+    return NextResponse.json({ comment: data.choices[0].message.content });
 
   } catch (error) {
-    return NextResponse.json({ comment: "Проблема в настройках сервера." }, { status: 500 });
+    // Если код упал совсем — выводим это сообщение
+    return NextResponse.json({ comment: "Критическая ошибка сервера. Проверьте логи в Vercel." }, { status: 200 });
   }
 }
